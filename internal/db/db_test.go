@@ -290,38 +290,65 @@ func TestEventsInRangeOverlapEdgeCases(t *testing.T) {
 		allDay bool
 		start  time.Time
 		end    time.Time
+		want   bool
 	}{
 		{
 			name:   "all-day event on query day",
 			allDay: true,
 			start:  queryFrom,
 			end:    queryTo,
+			want:   true,
 		},
 		{
 			name:   "all-day event spanning multiple days",
 			allDay: true,
 			start:  queryFrom.AddDate(0, 0, -1),
 			end:    queryTo.AddDate(0, 0, 1),
+			want:   true,
+		},
+		{
+			name:   "all-day event ending at query start is excluded",
+			allDay: true,
+			start:  queryFrom.AddDate(0, 0, -1),
+			end:    queryFrom,
+			want:   false,
+		},
+		{
+			name:   "all-day event starting at query end is excluded",
+			allDay: true,
+			start:  queryTo,
+			end:    queryTo.AddDate(0, 0, 1),
+			want:   false,
 		},
 		{
 			name:  "timed event inside range",
 			start: queryFrom.Add(10 * time.Hour),
 			end:   queryFrom.Add(11 * time.Hour),
+			want:  true,
 		},
 		{
 			name:  "timed event starts before range and ends inside range",
 			start: queryFrom.Add(-1 * time.Hour),
 			end:   queryFrom.Add(1 * time.Hour),
+			want:  true,
 		},
 		{
 			name:  "timed event starts inside range and ends after range",
 			start: queryTo.Add(-1 * time.Hour),
 			end:   queryTo.Add(1 * time.Hour),
+			want:  true,
 		},
 		{
 			name:  "timed event spans whole range",
 			start: queryFrom.Add(-1 * time.Hour),
 			end:   queryTo.Add(1 * time.Hour),
+			want:  true,
+		},
+		{
+			name:  "timed event ending at query start is excluded",
+			start: queryFrom.Add(-1 * time.Hour),
+			end:   queryFrom,
+			want:  false,
 		},
 	}
 
@@ -357,8 +384,14 @@ func TestEventsInRangeOverlapEdgeCases(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(events) != 1 || events[0].UID != e.UID {
-				t.Fatalf("expected one matching event, got %+v", events)
+			if tc.want {
+				if len(events) != 1 || events[0].UID != e.UID {
+					t.Fatalf("expected one matching event, got %+v", events)
+				}
+				return
+			}
+			if len(events) != 0 {
+				t.Fatalf("expected no matching events, got %+v", events)
 			}
 		})
 	}

@@ -32,7 +32,7 @@ USER_BIN = Path.home() / "bin" / "icalendar"
 # reference this name; new code should call _resolve_binary() instead.
 ICALENDAR_BINARY = str(USER_BIN)
 
-PLUGIN_VERSION = "1.0.0"  # keep in sync with plugin.yaml
+PLUGIN_VERSION = "1.0.1"  # keep in sync with plugin.yaml
 GITHUB_REPO = "addvanced/icloud-calendar"
 
 _TIMEOUT_SECONDS = 30

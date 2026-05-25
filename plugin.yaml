@@ -1,5 +1,5 @@
 name: icalendar
-version: "1.0.0"
+version: "1.0.1"
 description: "Read-only iCloud Calendar tools for Hermes — query events via local CalDAV cache"
 author: addvanced
 homepage: https://github.com/addvanced/icloud-calendar

@@ -194,7 +194,7 @@ func (s *Store) DeleteEvent(ctx context.Context, calendarURL, href string) error
 }
 
 func (s *Store) EventsInRange(ctx context.Context, from, to time.Time, calendarName string) ([]model.Event, error) {
-	q := `SELECT e.uid,e.href,e.calendar_url,c.name,e.etag,e.ical_raw,coalesce(e.summary,''),coalesce(e.location,''),coalesce(e.description,''),e.start_time,e.end_time,e.all_day,e.last_modified,coalesce(e.recurrence_info,''),e.synced_at FROM events e JOIN calendars c ON c.url=e.calendar_url WHERE e.end_time >= ? AND e.start_time < ?`
+	q := `SELECT e.uid,e.href,e.calendar_url,c.name,e.etag,e.ical_raw,coalesce(e.summary,''),coalesce(e.location,''),coalesce(e.description,''),e.start_time,e.end_time,e.all_day,e.last_modified,coalesce(e.recurrence_info,''),e.synced_at FROM events e JOIN calendars c ON c.url=e.calendar_url WHERE e.end_time > ? AND e.start_time < ?`
 	args := []any{from, to}
 	if calendarName != "" {
 		q += ` AND c.name COLLATE NOCASE = ?`
