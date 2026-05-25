@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write   # required to upload release assets
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - name: Verify version coupling
+        # The plugin's downloader pins to PLUGIN_VERSION inside tools.py.
+        # plugin.yaml advertises a version that's surfaced in Hermes' UI.
+        # The git tag drives this workflow and names the GitHub Release.
+        # All three must agree, or installs end up trying to download a
+        # release that doesn't exist (or the wrong one).
+        #
+        # Parsing tolerates quoted/unquoted values, either quote style, and
+        # trailing comments (tools.py ships PLUGIN_VERSION with an inline
+        # 'keep in sync' comment). A failed parse yields an empty string,
+        # which still fails the equality check below.
+        run: |
+          set -euo pipefail
+          strip_comment_and_quotes='s/#.*$//; s/[[:space:]]+$//; s/^["'\'']//; s/["'\'']$//'
+          tag_version="${GITHUB_REF_NAME#v}"
+          yaml_version=$(grep -E '^version:' plugin.yaml \
+            | head -1 \
+            | sed -E "s/^version:[[:space:]]*//; ${strip_comment_and_quotes}")
+          py_version=$(grep -E '^PLUGIN_VERSION[[:space:]]*=' tools.py \
+            | head -1 \
+            | sed -E "s/^PLUGIN_VERSION[[:space:]]*=[[:space:]]*//; ${strip_comment_and_quotes}")
+          echo "tag         : ${tag_version}"
+          echo "plugin.yaml : ${yaml_version}"
+          echo "tools.py    : ${py_version}"
+          if [ -z "${yaml_version}" ] || [ -z "${py_version}" ]; then
+            echo "::error::could not parse plugin.yaml or tools.py version"
+            exit 1
+          fi
+          if [ "${tag_version}" != "${yaml_version}" ] || [ "${tag_version}" != "${py_version}" ]; then
+            echo "::error::version mismatch — tag/plugin.yaml/tools.py must agree"
+            exit 1
+          fi
+          echo "✓ versions agree on ${tag_version}"
+
+      - name: Build binaries for all supported targets
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+            goos=${target%/*}
+            goarch=${target#*/}
+            asset="icalendar-${goos}-${goarch}"
+            echo "Building ${asset}"
+            CGO_ENABLED=0 GOOS=${goos} GOARCH=${goarch} \
+              go build -trimpath -ldflags='-s -w' \
+              -o "dist/${asset}" ./cmd/icalendar
+            (cd dist && sha256sum "${asset}" > "${asset}.sha256")
+          done
+          ls -la dist/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

@@ -1,0 +1,25 @@
+name: icalendar
+version: "1.0.0"
+description: "Read-only iCloud Calendar tools for Hermes — query events via local CalDAV cache"
+author: addvanced
+homepage: https://github.com/addvanced/icloud-calendar
+provides_tools:
+  - icalendar_status
+  - icalendar_sync
+  - icalendar_list_calendars
+  - icalendar_today
+  - icalendar_tomorrow
+  - icalendar_week
+  - icalendar_next_week
+  - icalendar_range
+  - icalendar_search
+  - icalendar_show
+requires_env:
+  - name: ICALENDAR_APPLE_ID
+    description: "Your Apple ID email — used as iCloud CalDAV username"
+    url: "https://appleid.apple.com/"
+    secret: false
+  - name: ICALENDAR_PASSWORD
+    description: "App-specific password for CalDAV (NOT your regular Apple password). Generate one at https://appleid.apple.com/account/manage under Sign-In and Security → App-Specific Passwords."
+    url: "https://appleid.apple.com/account/manage"
+    secret: true

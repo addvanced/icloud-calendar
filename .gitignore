@@ -1,0 +1,47 @@
+# Binaries
+/icalendar
+*.exe
+*.test
+*.out
+/bin/
+/dist/
+
+# Coverage
+*.coverprofile
+coverage.html
+
+# Local config (never commit)
+config.toml
+.env
+.env.*
+
+# SQLite databases
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Local cache
+.cache/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Go modules
+vendor/
+
+# Code Review Directory
+review/
+
+# Override global gitignore: we DO want plan docs in this repo
+!docs/plans/
+!docs/plans/**
