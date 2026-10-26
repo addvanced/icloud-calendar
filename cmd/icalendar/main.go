@@ -9,6 +9,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	_ "time/tzdata"
 
 	"github.com/addvanced/icloud-calendar/internal/caldav"
 	"github.com/addvanced/icloud-calendar/internal/config"

@@ -2,6 +2,8 @@ package icalparse
 
 import (
 	"bytes"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,22 +34,67 @@ func ParseEvent(raw string, loc *time.Location) (model.Event, error) {
 	if p := ev.Props.Get(ical.PropDateTimeStart); p != nil && p.ValueType() == ical.ValueDate {
 		out.AllDay = true
 	}
-	out.StartTime, err = ev.DateTimeStart(loc)
+	out.StartTime, err = dateTime(ev.Props.Get(ical.PropDateTimeStart), loc)
 	if err != nil {
 		return out, err
 	}
-	out.EndTime, err = ev.DateTimeEnd(loc)
-	if err != nil {
-		if ev.Props.Get(ical.PropDateTimeEnd) != nil || ev.Props.Get(ical.PropDuration) != nil {
+	if endProp := ev.Props.Get(ical.PropDateTimeEnd); endProp != nil {
+		out.EndTime, err = dateTime(endProp, loc)
+		if err != nil {
 			return out, err
 		}
-		out.EndTime = defaultEndTime(out.StartTime, out.AllDay)
-	} else if out.EndTime.IsZero() {
+	} else if durationProp := ev.Props.Get(ical.PropDuration); durationProp != nil {
+		duration, err := durationProp.Duration()
+		if err != nil {
+			return out, err
+		}
+		out.EndTime = out.StartTime.Add(duration)
+	} else {
 		out.EndTime = defaultEndTime(out.StartTime, out.AllDay)
 	}
 	out.LastModified, _ = ev.Props.DateTime(ical.PropLastModified, time.UTC)
 	out.RecurrenceInfo = recurrenceInfo(ev)
 	return out, nil
+}
+
+var gmtOffsetTimezone = regexp.MustCompile(`^GMT([+-])(\d{2})(?::?(\d{2}))?$`)
+
+// dateTime parses an iCalendar date-time while accepting iCloud's fixed-offset
+// TZID values such as GMT-0500, which are not IANA location names.
+func dateTime(prop *ical.Prop, fallback *time.Location) (time.Time, error) {
+	if prop == nil {
+		return time.Time{}, nil
+	}
+	if tzid := prop.Params.Get(ical.PropTimezoneID); tzid != "" {
+		if loc, ok := fixedOffsetLocation(tzid); ok {
+			// go-ical always resolves TZID itself. Fixed-offset TZIDs are not
+			// in Go's IANA zone database, so temporarily omit it while parsing.
+			prop.Params.Del(ical.PropTimezoneID)
+			defer prop.Params.Set(ical.PropTimezoneID, tzid)
+			return prop.DateTime(loc)
+		}
+	}
+	return prop.DateTime(fallback)
+}
+
+func fixedOffsetLocation(tzid string) (*time.Location, bool) {
+	matches := gmtOffsetTimezone.FindStringSubmatch(tzid)
+	if matches == nil {
+		return nil, false
+	}
+	hours, _ := strconv.Atoi(matches[2])
+	minutes := 0
+	if matches[3] != "" {
+		minutes, _ = strconv.Atoi(matches[3])
+	}
+	if hours > 23 || minutes > 59 {
+		return nil, false
+	}
+	offset := hours*60*60 + minutes*60
+	if matches[1] == "-" {
+		offset = -offset
+	}
+	return time.FixedZone(tzid, offset), true
 }
 
 func defaultEndTime(start time.Time, allDay bool) time.Time {

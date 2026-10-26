@@ -1,11 +1,14 @@
 package icalparse
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/addvanced/icloud-calendar/internal/model"
+
+	ical "github.com/emersion/go-ical"
 )
 
 func TestParseEvent(t *testing.T) {
@@ -214,6 +217,74 @@ func TestDefaultEndTime(t *testing.T) {
 	start := time.Date(2026, 5, 21, 10, 0, 0, 0, time.UTC)
 	assertTime(t, "timed default end", defaultEndTime(start, false), start)
 	assertTime(t, "all-day default end", defaultEndTime(start, true), start.Add(24*time.Hour))
+}
+
+func TestParseEventWithICloudFixedOffsetTimezone(t *testing.T) {
+	raw := eventICS(
+		"UID:fixed-offset",
+		"SUMMARY:iCloud fixed offset",
+		"DTSTART;TZID=GMT-0500:20261023T090000",
+		"DTEND;TZID=GMT-0500:20261023T100000",
+	)
+	ev, err := ParseEvent(raw, time.UTC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantLoc := time.FixedZone("GMT-0500", -5*60*60)
+	assertTime(t, "StartTime", ev.StartTime, time.Date(2026, 10, 23, 9, 0, 0, 0, wantLoc))
+	assertTime(t, "EndTime", ev.EndTime, time.Date(2026, 10, 23, 10, 0, 0, 0, wantLoc))
+
+	cal, err := ical.NewDecoder(bytes.NewBufferString(raw)).Decode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := cal.Events()[0].Props.Get(ical.PropDateTimeStart)
+	if _, err := dateTime(start, time.UTC); err != nil {
+		t.Fatal(err)
+	}
+	assertString(t, "DTSTART TZID", start.Params.Get(ical.PropTimezoneID), "GMT-0500")
+}
+
+func TestParseEventWithQuotedColonFixedOffsetTimezone(t *testing.T) {
+	raw := eventICS(
+		"UID:fixed-offset-colon",
+		"DTSTART;TZID=\"GMT+05:30\":20261023T090000",
+		"DTEND;TZID=\"GMT+05:30\":20261023T100000",
+	)
+	ev, err := ParseEvent(raw, time.UTC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantLoc := time.FixedZone("GMT+05:30", 5*60*60+30*60)
+	assertTime(t, "StartTime", ev.StartTime, time.Date(2026, 10, 23, 9, 0, 0, 0, wantLoc))
+	assertTime(t, "EndTime", ev.EndTime, time.Date(2026, 10, 23, 10, 0, 0, 0, wantLoc))
+}
+
+func TestFixedOffsetLocation(t *testing.T) {
+	tests := []struct {
+		tzid   string
+		wantOK bool
+		want   int
+	}{
+		{tzid: "GMT-0500", wantOK: true, want: -5 * 60 * 60},
+		{tzid: "GMT+05:30", wantOK: true, want: 5*60*60 + 30*60},
+		{tzid: "America/Chicago", wantOK: false},
+		{tzid: "GMT-2560", wantOK: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.tzid, func(t *testing.T) {
+			loc, ok := fixedOffsetLocation(tt.tzid)
+			if ok != tt.wantOK {
+				t.Fatalf("fixedOffsetLocation(%q) ok = %v, want %v", tt.tzid, ok, tt.wantOK)
+			}
+			if ok {
+				_, got := time.Now().In(loc).Zone()
+				if got != tt.want {
+					t.Errorf("offset = %d, want %d", got, tt.want)
+				}
+			}
+		})
+	}
 }
 
 func TestParseEventInCopenhagenTime(t *testing.T) {
